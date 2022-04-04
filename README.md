@@ -1,6 +1,6 @@
 # EC523-Final-Project
 
-<img src="images/stutternet.PNG" alt="screenshot" class="inline"/>
+<img src="./images/stutternet.png" alt="screenshot" class="inline"/>
 
 For our final project in EC523 we chose to solve the stutter detection task
 posed by Apple's SEP-28k dataset. In an attempt to solve this task, we tried three different neural network architectures: StutterNet proposed by
@@ -28,15 +28,15 @@ Below is short explanation of remaining files in the project folder.
 
 **NOTE**: Python files still need to be tested and ported over from the Jupyter Notebook.
 
-[io.py](Stutternet/io.py) contains the tools for creating the Pytorch data
+[io.py](StutterNet/io.py) contains the tools for creating the Pytorch data
 pipeline.
 
-[losses.py](Stutternet/losses.py) contains the loss functions used for training and evaluation.
+[losses.py](StutterNet/losses.py) contains the loss functions used for training and evaluation.
 
-[metrics.py](Stutternet/metrics.py) contains the metrics used for evaluation.
+[metrics.py](StutterNet/metrics.py) contains the metrics used for evaluation.
 
-[models.py](Stutternet/models.py) contains the model definitions for our experiments.
+[models.py](StutterNet/models.py) contains the model definitions for our experiments.
 
-[train.py](Stutternet/train.py) contains the training/evaluation function.
+[train.py](StutterNet/train.py) contains the training/evaluation function.
 
 **NOTE**: Tutorial underway!
