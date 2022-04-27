@@ -1,0 +1,12 @@
+PoorAudioQuality
+Unsure
+DifficultToUnderstand 
+NaturalPause
+Music
+NoSpeech
+Prolongation
+Block
+SoundRep
+WordRep
+Interjection
+NoStutteredWords
