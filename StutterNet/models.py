@@ -1,6 +1,7 @@
 import torch
 from torch import nn
 import torchaudio as audio
+from torch import Tensor
 
 class StutterNet(nn.Module):
   def __init__(self, n_mels=40, 
@@ -23,10 +24,10 @@ class StutterNet(nn.Module):
 
     self.n_mels = n_mels
     
-    self.spec = audio.transforms.MelSpectrogram(n_mels=n_mels, sample_rate=16000,
+    # self.spec = audio.transforms.MelSpectrogram(n_mels=n_mels, sample_rate=16000,
                                                n_fft=512, pad=1, f_max=8000, win_length=400,
                                                 f_min=0, power=2.0, hop_length=160, norm='slaney')
-    self.db = audio.transforms.AmplitudeToDB()
+    # self.db = audio.transforms.AmplitudeToDB()
     # self.mfcc = audio.transforms.MFCC(16000, 40)
     self.tdnn_1 = nn.Conv1d(n_mels, int(512*scale), 5, dilation=1)
     self.tdnn_2 = nn.Conv1d(int(512*scale), int(1536*scale), 5, dilation=2)
@@ -56,8 +57,8 @@ class StutterNet(nn.Module):
     '''forward method'''
     batch_size = x.shape[0]
 
-    x = self.spec(x)
-    x = self.db(x)
+    # x = self.spec(x)
+    # x = self.db(x)
     # x = self.mfcc(x)
     x = self.tdnn_1(x)
     x = self.relu(x)
@@ -92,109 +93,331 @@ class StutterNet(nn.Module):
     # return torch.cat((classes, binary), dim=-1)
     return torch.cat((binary, classes), dim=-1)
 
-class ConvEncoder(nn.Module):
-    def __init__(self, embed_dim, num_heads, ff_dim, dropout=0.0):
-        '''Transformer encoder with convolution fcn head
+class ResBlock1d(nn.Module):
+  def __init__(self, input_dims, output_dims, depth=2, kernel_size=3,
+               use_batchnorm=False, downsample=False, dropout=0.0):
+    super(ResBlock1d, self).__init__()
 
-        Args:
-          embed (int): input embedding shape
-          num_heads (int): number of heads in multi-head attention
-          ff_dim (int): feed-forward dimensions
-          dropout (float, optional): dropout rate
-        '''
-        super(ConvEncoder, self).__init__()
-        
-        self.norm = nn.LayerNorm(embed_dim, eps=1e-6)
-        self.mha = nn.MultiheadAttention(embed_dim, num_heads, dropout=dropout)
-        self.dropout = nn.Dropout(dropout)
-        self.conv_1 = nn.Conv1d(embed_dim, ff_dim, 3, padding=1)
-        # self.relu = nn.ReLU()
-        self.relu = nn.LeakyReLU()
-        self.conv_2 = nn.Conv1d(ff_dim, embed_dim, 3, padding=1)
-        
-    def forward(self, x):
-        '''forward method'''
-        inputs = x
-        batch_size = x.shape[0]
-        embed_dim = x.shape[-1]
-        
-        x, _ = self.mha(x, x, x)
-        x = self.norm(x)
+    self.depth = depth
+    self.use_batchnorm = use_batchnorm
+
+    scale = 1
+    self.up = None
+    if (downsample):
+      self.down = nn.Conv1d(int(input_dims), int(output_dims), 3, 2, padding=1)
+      # self.down = nn.MaxPool1d(1, stride=2)
+      scale=2
+
+    self.downsample = downsample
+
+    self.conv_1 = nn.Conv1d(int(input_dims), 
+      output_dims, 3, stride=scale, padding=1)
+    
+    self.convs = nn.ModuleList([nn.Conv1d(output_dims, 
+      output_dims, kernel_size, padding='same') for _ in range(depth-1)])
+    
+    self.bn_1 = nn.BatchNorm1d(output_dims)
+    self.bn = None
+
+    if (use_batchnorm):
+      self.bn = nn.ModuleList([nn.BatchNorm1d(
+          output_dims) for _ in range(depth-1)])
+      
+    self.relu = nn.ReLU()
+    self.dropout = nn.Dropout(dropout)
+
+  def forward(self, x):
+
+    temp = x
+    if (self.downsample):
+      temp = self.down(x)
+
+    x = self.conv_1(x)
+    x = self.bn_1(x)
+
+    if (not self.use_batchnorm):
+      for i in range(self.depth-1):
+        x = self.convs[i](x)
         x = self.dropout(x)
-        x = x + inputs
-        x = self.norm(x)
-        x = x.reshape((batch_size, embed_dim, -1))
-        x = self.conv_1(x)
+        if (i != self.depth-2):
+          x = self.relu(x)
+    else:
+      for i in range(self.depth-1):
+        x = self.convs[i](x)
         x = self.dropout(x)
-        x = self.conv_2(x)
+        x = self.bn[i](x)
+        if (i != self.depth-2):
+          x = self.relu(x)
+    x = temp + x
 
-        return x
+    return x
 
-class SpeechTransformer(nn.Module):
-    def __init__(self, n_mels=40, n_classes=12, num_blocks=4, num_units=2, 
-              hidden_dim=128, num_heads=40, ff_dim=120, dropout=0.0, mlp_dropout=0.0):
-        '''transformer with convolutional heads
+class ResNet1D(nn.Module):
+  def __init__(self, n_mels=100,n_classes=12, kernel_size=3,
+               dropout=0.0, use_batchnorm=False, scale=1):
+    '''Implementation of StutterNet
+    from Sheikh et al. StutterNet: 
+    "Stuttering Detection Using 
+    Time Delay Neural Network" 2021
 
-        Args:
-        n_mels (int, optional): number of mel filter banks
-        n_classes (int, optional): number of classes
-        num_blocks (int, optional): number of transformer blocks
-        num_units (int, optional): number of linear units
-        hidden_dim (int, optional): number of hidden units in linear layers
-        num_heads (int): number of heads in multi-head attention
-        ff_dim (int): feed-forward dimensions
-        dropout (float, optional): dropout rate
-        mlp_dropout (float, optional): mlp dropout rate
-        '''
-        super(SpeechTransformer, self).__init__()
+    Args:
+      n_mels (int, optional): number of mel filter banks
+      n_classes (int, optional): number of classes in output layer
+      use_dropout (bool, optional): whether or not to use dropout in the
+        last two linear layers
+      use_batchnorm (bool, optional): whether ot not to batchnorm in the
+        TDNN layers
+      scale (float ,optional): width scale factor
+    '''
+    super(ResNet1D, self).__init__()
 
-        self.num_blocks = num_blocks
-        self.num_units = num_units
-        
-        self.n_mels = n_mels
-        
-        self.spec = audio.transforms.MelSpectrogram(n_mels=n_mels, sample_rate=16000,
-                                               n_fft=512, win_length=400, pad=1, f_max=8000, f_min=0,
-                                               power=2.0, hop_length=160, norm='slaney')
-        self.db = audio.transforms.AmplitudeToDB()
+    self.n_mels = n_mels
+    
+    # self.spec = audio.transforms.MelSpectrogram(n_mels=n_mels, sample_rate=16000,
+    #                                            n_fft=512, pad=1, f_max=8000, f_min=0,
+    #                                            power=2.0, hop_length=160)
+    # self.mfcc = audio.transforms.MFCC(16000, 40)
+    # self.db = audio.transforms.AmplitudeToDB()
+    self.tdnn_1 = nn.Conv1d(n_mels, int(64*scale), 3, padding=1, bias=False)
 
-        self.transformers = nn.ModuleList([ConvEncoder(n_mels, num_heads, ff_dim, dropout=dropout)
-                        for i_ in range(num_blocks)])
-        self.first_mlp = nn.Linear(2*n_mels, hidden_dim)
-        self.mlps = nn.ModuleList([nn.Linear(hidden_dim, hidden_dim) for _ in range(num_units-1)])
-        self.dropout = nn.Dropout(mlp_dropout)
-        self.relu = nn.ReLU()
-        # self.out = nn.Linear(hidden_dim, 12)
-        self.binary_head = nn.Linear(hidden_dim, 6)
-        self.class_head = nn.Linear(hidden_dim, 6)
+    self.res_1_1 = ResBlock1d(int(64*scale), int(64*scale), kernel_size=kernel_size, downsample=True, use_batchnorm=use_batchnorm, dropout=dropout)
+    self.res_1_2 = ResBlock1d(int(64*scale), int(64*scale), kernel_size=kernel_size, downsample=False, use_batchnorm=use_batchnorm, dropout=dropout)
+    self.res_1_3 = ResBlock1d(int(64*scale), int(64*scale), kernel_size=kernel_size, downsample=False, use_batchnorm=use_batchnorm, dropout=dropout)
 
-        self.sig = nn.Sigmoid()
+    self.res_2_1 = ResBlock1d(int(64*scale), int(128*scale), kernel_size=kernel_size, downsample=True, use_batchnorm=use_batchnorm, dropout=dropout)
+    self.res_2_2 = ResBlock1d(int(128*scale), int(128*scale), kernel_size=kernel_size, downsample=False, use_batchnorm=use_batchnorm, dropout=dropout)
+    self.res_2_3 = ResBlock1d(int(128*scale), int(128*scale), kernel_size=kernel_size, downsample=False, use_batchnorm=use_batchnorm, dropout=dropout)
+
+    self.res_3_1 = ResBlock1d(int(128*scale), int(256*scale), kernel_size=kernel_size, downsample=True, use_batchnorm=use_batchnorm, dropout=dropout)
+    self.res_3_2 = ResBlock1d(int(256*scale), int(256*scale), kernel_size=kernel_size, downsample=False, use_batchnorm=use_batchnorm, dropout=dropout)
+    self.res_3_3 = ResBlock1d(int(256*scale), int(256*scale), kernel_size=kernel_size, downsample=False, use_batchnorm=use_batchnorm, dropout=dropout)
+
+    self.res_4_1 = ResBlock1d(int(256*scale), int(512*scale), kernel_size=kernel_size, downsample=True, use_batchnorm=use_batchnorm, dropout=dropout)
+    self.res_4_2 = ResBlock1d(int(512*scale), int(512*scale), kernel_size=kernel_size, downsample=False, use_batchnorm=use_batchnorm, dropout=dropout)
+    self.res_4_3 = ResBlock1d(int(512*scale), int(512*scale), kernel_size=kernel_size, downsample=False, use_batchnorm=use_batchnorm, dropout=dropout)
+
+    # self.bn = nn.BatchNorm1d(int(512*scale))
+
+    self.relu = nn.ReLU()
+    self.fc = nn.Linear(int(1024*scale), n_classes)
+
+  def forward(self, x):
+    '''forward method'''
+    batch_size = x.shape[0]
+
+    # x = self.spec(x)
+    # x = self.mfcc(x)
+    # x = self.db(x)
+    x = self.tdnn_1(x)
+
+    x = self.res_1_1(x)
+    x = self.relu(x)
+    x = self.res_1_2(x)
+    x = self.relu(x)
+    x = self.res_1_3(x)
+    x = self.relu(x)
+
+    x = self.res_2_1(x)
+    x = self.relu(x)
+    x = self.res_2_2(x)
+    x = self.relu(x)
+    x = self.res_2_3(x)
+    x = self.relu(x)
+
+    x = self.res_3_1(x)
+    x = self.relu(x)
+    x = self.res_3_2(x)
+    x = self.relu(x)
+    x = self.res_3_3(x)
+    x = self.relu(x)
+
+    x = self.res_4_1(x)
+    x = self.relu(x)
+    x = self.res_4_2(x)
+    x = self.relu(x)
+    x = self.res_4_3(x)
+    x = self.relu(x)
+
+    # x = self.bn(x)
+    mean = torch.mean(x,-1)
+    std = torch.std(x,-1)
+    x = torch.cat((mean,std),1)
+    x = self.fc(x)
+
+    return x
+  
+  from torch import Tensor
+
+'''credit: https://github.com/roman-vygon/BCResNet'''
+
+class SubSpectralNorm(nn.Module):
+    def __init__(self, C, S, eps=1e-5):
+        super(SubSpectralNorm, self).__init__()
+        self.S = S
+        self.eps = eps
+        self.bn = nn.BatchNorm2d(C*S)
 
     def forward(self, x):
-        '''forward method'''
-        batch_size = x.shape[0]
-        
-        x = self.spec(x)
-        x = self.db(x)
+        # x: input features with shape {N, C, F, T}
+        # S: number of sub-bands
+        N, C, F, T = x.size()
+        x = x.view(N, C * self.S, F // self.S, T)
 
-        for transformer in self.transformers:
-            x = x.reshape((batch_size, -1, self.n_mels))
-            x = transformer(x)
-        # x = torch.mean(x,-1)
-        m, s = torch.mean(x, -1), torch.std(x, -1)
-        x = torch.cat((m,s),1)
-        x = self.first_mlp(x)
-        for mlp in self.mlps:
-            x = mlp(x)
-            x = self.relu(x)
-            x = self.dropout(x)
-        # x = self.out(x)
+        x = self.bn(x)
 
-        binary = self.binary_head(x)
-        # binary = self.sig(binary)
+        return x.view(N, C, F, T)
 
-        classes = self.class_head(x)
-        # classes = self.sig(classes)
 
-        return torch.cat((binary, classes), dim=-1)
-        # return x
+class BroadcastedBlock(nn.Module):
+    def __init__(
+            self,
+            planes: int,
+            dilation=1,
+            stride=1,
+            temp_pad=(0, 1),
+    ) -> None:
+        super(BroadcastedBlock, self).__init__()
+
+        self.freq_dw_conv = nn.Conv2d(planes, planes, kernel_size=(3, 1), padding=(1, 0), groups=planes,
+                                      dilation=dilation,
+                                      stride=stride, bias=False)
+        self.ssn1 = SubSpectralNorm(planes, 5)
+        self.temp_dw_conv = nn.Conv2d(planes, planes, kernel_size=(1, 3), padding=temp_pad, groups=planes,
+                                      dilation=dilation, stride=stride, bias=False)
+        self.bn = nn.BatchNorm2d(planes)
+        self.relu = nn.ReLU(inplace=True)
+        self.channel_drop = nn.Dropout2d(p=0.5)
+        self.swish = nn.SiLU()
+        self.conv1x1 = nn.Conv2d(planes, planes, kernel_size=(1, 1), bias=False)
+
+    def forward(self, x: Tensor) -> Tensor:
+        identity = x
+
+        # f2
+        ##########################
+        out = self.freq_dw_conv(x)
+        out = self.ssn1(out)
+        ##########################
+
+        auxilary = out
+        out = out.mean(2, keepdim=True)  # frequency average pooling
+
+        # f1
+        ############################
+        out = self.temp_dw_conv(out)
+        out = self.bn(out)
+        out = self.swish(out)
+        out = self.conv1x1(out)
+        out = self.channel_drop(out)
+        ############################
+
+        out = out + identity + auxilary
+        out = self.relu(out)
+
+        return out
+
+
+class TransitionBlock(nn.Module):
+
+    def __init__(
+            self,
+            inplanes: int,
+            planes: int,
+            dilation=1,
+            stride=1,
+            temp_pad=(0, 1),
+    ) -> None:
+        super(TransitionBlock, self).__init__()
+
+        self.freq_dw_conv = nn.Conv2d(planes, planes, kernel_size=(3, 1), padding=(1, 0), groups=planes,
+                                      stride=stride,
+                                      dilation=dilation, bias=False)
+        self.ssn = SubSpectralNorm(planes, 5)
+        self.temp_dw_conv = nn.Conv2d(planes, planes, kernel_size=(1, 3), padding=temp_pad, groups=planes,
+                                      dilation=dilation, stride=stride, bias=False)
+        self.bn1 = nn.BatchNorm2d(planes)
+        self.bn2 = nn.BatchNorm2d(planes)
+        self.relu = nn.ReLU(inplace=True)
+        self.channel_drop = nn.Dropout2d(p=0.5)
+        self.swish = nn.SiLU()
+        self.conv1x1_1 = nn.Conv2d(inplanes, planes, kernel_size=(1, 1), bias=False)
+        self.conv1x1_2 = nn.Conv2d(planes, planes, kernel_size=(1, 1), bias=False)
+
+    def forward(self, x: Tensor) -> Tensor:
+        # f2
+        #############################
+        out = self.conv1x1_1(x)
+        out = self.bn1(out)
+        out = self.relu(out)
+        out = self.freq_dw_conv(out)
+        out = self.ssn(out)
+        #############################
+        auxilary = out
+        out = out.mean(2, keepdim=True)  # frequency average pooling
+
+        # f1
+        #############################
+        out = self.temp_dw_conv(out)
+        out = self.bn2(out)
+        out = self.swish(out)
+        out = self.conv1x1_2(out)
+        out = self.channel_drop(out)
+        #############################
+
+        out = auxilary + out
+        out = self.relu(out)
+
+        return out
+
+class BCResNet(torch.nn.Module):
+    def __init__(self):
+        super(BCResNet, self).__init__()
+        self.conv1 = nn.Conv2d(1, 16, 5, stride=(2, 1), padding=(2, 2))
+        self.block1_1 = TransitionBlock(16, 8)
+        self.block1_2 = BroadcastedBlock(8)
+
+        self.block2_1 = TransitionBlock(8, 12, stride=(2, 1), dilation=(1, 2), temp_pad=(0, 2))
+        self.block2_2 = BroadcastedBlock(12, dilation=(1, 2), temp_pad=(0, 2))
+
+        self.block3_1 = TransitionBlock(12, 16, stride=(2, 1), dilation=(1, 4), temp_pad=(0, 4))
+        self.block3_2 = BroadcastedBlock(16, dilation=(1, 4), temp_pad=(0, 4))
+        self.block3_3 = BroadcastedBlock(16, dilation=(1, 4), temp_pad=(0, 4))
+        self.block3_4 = BroadcastedBlock(16, dilation=(1, 4), temp_pad=(0, 4))
+
+        self.block4_1 = TransitionBlock(16, 20, dilation=(1, 8), temp_pad=(0, 8))
+        self.block4_2 = BroadcastedBlock(20, dilation=(1, 8), temp_pad=(0, 8))
+        self.block4_3 = BroadcastedBlock(20, dilation=(1, 8), temp_pad=(0, 8))
+        self.block4_4 = BroadcastedBlock(20, dilation=(1, 8), temp_pad=(0, 8))
+
+        self.conv2 = nn.Conv2d(20, 20, 5, groups=20, padding=(0, 2))
+        self.conv3 = nn.Conv2d(20, 32, 1, bias=False)
+        self.conv4 = nn.Conv2d(32, 12, 1, bias=False)
+
+    def forward(self, x):
+
+        out = self.conv1(x)
+
+        out = self.block1_1(out)
+        out = self.block1_2(out)
+
+        out = self.block2_1(out)
+        out = self.block2_2(out)
+
+        out = self.block3_1(out)
+        out = self.block3_2(out)
+        out = self.block3_3(out)
+        out = self.block3_4(out)
+
+        out = self.block4_1(out)
+        out = self.block4_2(out)
+        out = self.block4_3(out)
+        out = self.block4_4(out)
+
+        out = self.conv2(out)
+
+        out = self.conv3(out)
+        out = out.mean(-1, keepdim=True)
+
+        out = self.conv4(out)
+
+        return out.reshape((-1, 12))
