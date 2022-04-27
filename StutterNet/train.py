@@ -76,8 +76,12 @@ def train(net, trainloader, criterion, batch_size,
       print("\nepoch {}/{}".format(i+1,epochs))
       pbar = Progbar(target=num_batches)
 
-    if (metrics is not None):
-      train_metrics = [0 for metric in metrics]
+    # if (metrics is not None):
+    #   train_metrics = [0 for metric in metrics]
+
+    y_true = np.zeros((num_samples, 12))
+    y_pred = np.zeros((num_samples, 12))
+    idx = 0
 
     for j, data in enumerate(iter(trainloader)):
         # get the inputs; data is a list of [inputs, labels]
@@ -92,6 +96,12 @@ def train(net, trainloader, criterion, batch_size,
         train_loss = criterion(outputs, labels)
         train_loss.backward()
         optimizer.step()
+
+        y_true[idx:idx+outputs.shape[0], :] = labels.detach().cpu().numpy()
+        y_pred[idx:idx+outputs.shape[0], :] = outputs.detach().cpu().numpy()
+
+        idx += outputs.shape[0]
+
         if (scheduler is not None):
             scheduler.step()
 
@@ -104,25 +114,39 @@ def train(net, trainloader, criterion, batch_size,
         writer.add_scalar('Loss/train', 
           train_loss.detach().cpu().numpy().item(), steps)
 
-        if (metrics is not None):
-          for (j, metric) in enumerate(metrics):
-            # train_metrics[j] += metric[1](outputs, labels).detach().cpu().numpy()
-            train_metrics[j] += metric[1](outputs, labels)
+        # if (metrics is not None):
+          # for (j, metric) in enumerate(metrics):
+          #   # train_metrics[j] += metric[1](outputs, labels).detach().cpu().numpy()
+          #   train_metrics[j] += metric[1](outputs, labels)
 
-    if (metrics is not None):
-      for (j, metric) in enumerate(metrics):
-        # writer.add_scalar(metric[0] + '/train', 
-        #   train_metrics[j] / num_samples, steps)
-        writer.add_scalar(metric[0] + '/train', 
-          train_metrics[j] / num_batches, steps)
+    rep = classification_report(y_true.astype('int'), 
+      (sigmoid(y_pred) > 0.5).astype('int'), target_names=target_names,
+      output_dict=True)
+    
+    for k in rep.keys():
+      for j in rep[k].keys():
+        writer.add_scalar(j + '/' + k + '/train',
+          rep[k][j], steps)
+
+    # if (metrics is not None):
+    #   for (j, metric) in enumerate(metrics):
+    #     # writer.add_scalar(metric[0] + '/train', 
+    #     #   train_metrics[j] / num_samples, steps)
+    #     writer.add_scalar(metric[0] + '/train', 
+    #       train_metrics[j] / num_batches, steps)
 
     if (validationloader is not None):
       net.train(False)
       val_loss = 0
-      if (metrics is not None):
-        val_metrics = [0 for metric in metrics]
+      # if (metrics is not None):
+      #   val_metrics = [0 for metric in metrics]
       num_val_batches = len(validationloader)
       num_val_samples = num_val_batches * batch_size
+
+      y_val_true = np.zeros((num_val_samples, 12))
+      y_val_pred = np.zeros((num_val_samples, 12))
+
+      idx = 0
 
       for data in iter(validationloader):
             # get the inputs; data is a list of [inputs, labels]
@@ -131,28 +155,48 @@ def train(net, trainloader, criterion, batch_size,
             
             outputs = net(inputs)
             val_loss += criterion(outputs, labels).detach().cpu().numpy()
-            if (metrics is not None):
-                for (j, metric) in enumerate(metrics):
-                    # val_metrics[j] += metric[1](outputs, labels).detach().cpu().numpy()
-                    val_metrics[j] += metric[1](outputs, labels)
+
+            y_val_true[idx:idx+outputs.shape[0], :] = labels.detach().cpu().numpy()
+            y_val_pred[idx:idx+outputs.shape[0], :] = outputs.detach().cpu().numpy()
+
+            idx += outputs.shape[0]
+
+            # if (metrics is not None):
+            #     for (j, metric) in enumerate(metrics):
+            #         # val_metrics[j] += metric[1](outputs, labels).detach().cpu().numpy()
+            #         val_metrics[j] += metric[1](outputs, labels)
                     
       val_loss /= (num_val_batches) # assume all validation set used
+      # scheduler.step(val_loss)
+
+      rep = classification_report(y_val_true.astype('int'), 
+        (sigmoid(y_val_pred) > 0.5).astype('int'), target_names=target_names,
+        output_dict=True)
+      print(classification_report(y_val_true.astype('int'), 
+                                  (sigmoid(y_val_pred) > 0.5).astype('int'), target_names=target_names))
+      #  output_dict=False)
+      #print(rep2)
+      
+      for k in rep.keys():
+        for j in rep[k].keys():
+          writer.add_scalar(j + '/' + k + '/valid',
+            rep[k][j], steps)
 
       writer.add_scalar('Loss/valid', val_loss, steps)
 
-      if (metrics is not None):
-        for (j, metric) in enumerate(metrics):
-          # writer.add_scalar(metric[0] + '/valid', 
-          #   val_metrics[j] / num_val_samples, steps)
-           writer.add_scalar(metric[0] + '/valid', 
-            val_metrics[j] / num_val_batches, steps)
+      # if (metrics is not None):
+      #   for (j, metric) in enumerate(metrics):
+      #     # writer.add_scalar(metric[0] + '/valid', 
+      #     #   val_metrics[j] / num_val_samples, steps)
+      #      writer.add_scalar(metric[0] + '/valid', 
+      #       val_metrics[j] / num_val_batches, steps)
         
-      if (tuner):
-        with tune.checkpoint_dir(i+1) as checkpoint_dir:
-            path = os.path.join(checkpoint_dir, "checkpoint")
-            torch.save((net.state_dict(), optimizer.state_dict()), path)
+      # if (tuner):
+      #   with tune.checkpoint_dir(i+1) as checkpoint_dir:
+      #       path = os.path.join(checkpoint_dir, "checkpoint")
+      #       torch.save((net.state_dict(), optimizer.state_dict()), path)
             
-        tune.report(loss=val_loss, accuracy=val_metrics[0] / num_val_samples, iters=i+1)
+      #   tune.report(loss=val_loss, accuracy=val_metrics[0] / num_val_samples, iters=i+1)
           
       if (verbose):
         pbar.update(num_batches, values=[("val_loss",val_loss.item())])
