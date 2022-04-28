@@ -40,4 +40,21 @@ pipeline.
 
 [train.py](StutterNet/train.py) contains the training/evaluation function.
 
-**NOTE**: Tutorial underway!
+**Getting Started**:
+
+*Test on Ubuntu 18.04 LTS*
+
+1. Clone the Repository:
+   
+   git clone https://github.com/chmo2019/EC523-Final-Project/
+
+2. Navigate to the repository:
+
+   cd EC523-Final-Project
+
+3. Fetch the dataset:
+
+   chmod +x fetch.sh
+   ./fetch.sh
+ 
+
