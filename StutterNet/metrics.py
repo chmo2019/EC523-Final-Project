@@ -2,9 +2,6 @@ from sklearn.metrics import f1_score
 import numpy as np
 
 #TODO: implement as nn.Module subclass
-
-def sigmoid(x):
-  return 1 / (1 + np.exp(-x))
   
 def f1(y_hat, y):
   per_class_score = f1_score(y.cpu().detach().numpy().astype('int'), 
