@@ -19,15 +19,15 @@ class SEP28KDataset(torch.utils.data.Dataset):
         """
         self.data = x
         self.labels = y
-        self.spec = audio.transforms.MelSpectrogram(n_mels=80, sample_rate=16000,
-                                               n_fft=512, f_max=8000, f_min=0,
-                                               power=0.5, hop_length=152, win_length=480)
-        self.db = audio.transforms.AmplitudeToDB()
+        # self.spec = audio.transforms.MelSpectrogram(n_mels=80, sample_rate=16000,
+        #                                       n_fft=512, f_max=8000, f_min=0,
+        #                                       power=0.5, hop_length=152, win_length=480)
+        # self.db = audio.transforms.AmplitudeToDB()
 
-        self.freq_mask = audio.transforms.FrequencyMasking(freq_mask_param=1)
+        # self.freq_mask = audio.transforms.FrequencyMasking(freq_mask_param=1)
         # self.time_mask = audio.transforms.TimeMasking(time_mask_param=20)
 
-        self.rng = np.random.default_rng(42)
+        # self.rng = np.random.default_rng(42)
         # self.rng_2 = np.random.default_rng(68)
         self.unsqueeze = unsqueeze
 
@@ -46,23 +46,23 @@ class SEP28KDataset(torch.utils.data.Dataset):
         wav = self.pad_trunc(wav, 3000, 16000).astype('float32')
 
         wav = torch.tensor(wav)
-        wav = self.spec(wav)
-        wav = self.db(wav)
+        #wav = self.spec(wav)
+        #wav = self.db(wav)
 
-        if (self.rng.choice(2,p=[0.2,0.8])):
-          wav = self.freq_mask(wav)
+        #if (self.rng.choice(2,p=[0.2,0.8])):
+        #  wav = self.freq_mask(wav)
 
         # if (self.rng_2.choice(2,p=[0.2,0.8])):
         #   wav = self.time_mask(wav)
 
-        if (self.unsqueeze):
-          wav = torch.unsqueeze(wav, 0)
-
         # get labels
         labels = self.labels[idx].astype('float32')
 
-        # if self.transform:
-        #     sample = self.transform(sample)
+        if self.transform is not None:
+            sample = self.transform(sample)
+        
+        if (self.unsqueeze):
+            wav = torch.unsqueeze(wav, 0)
 
         return torch.tensor(wav).clone().detach(), torch.tensor(labels).clone().detach()
         
