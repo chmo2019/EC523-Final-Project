@@ -23,10 +23,9 @@ Below is short explanation of remaining files in the project folder.
 │   ├── metrics.py
 │   ├── models.py
 │   ├── train.py
+│   ├── __init__.py
 └── README.md                  This is the file you are currently reading
 ```
-
-**NOTE**: Python files still need to be tested and ported over from the Jupyter Notebook.
 
 [io.py](StutterNet/io.py) contains the tools for creating the Pytorch data
 pipeline.
