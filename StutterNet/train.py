@@ -2,6 +2,7 @@ import torch
 from torch import nn
 import numpy as np
 import argparse
+from .metrics import sigmoid
 
 def parser():
 	#TODO: create parser
