@@ -25,8 +25,8 @@ class StutterNet(nn.Module):
     self.n_mels = n_mels
     
     # self.spec = audio.transforms.MelSpectrogram(n_mels=n_mels, sample_rate=16000,
-                                               n_fft=512, pad=1, f_max=8000, win_length=400,
-                                                f_min=0, power=2.0, hop_length=160, norm='slaney')
+    #                                           n_fft=512, pad=1, f_max=8000, win_length=400,
+    #                                           f_min=0, power=2.0, hop_length=160, norm='slaney')
     # self.db = audio.transforms.AmplitudeToDB()
     # self.mfcc = audio.transforms.MFCC(16000, 40)
     self.tdnn_1 = nn.Conv1d(n_mels, int(512*scale), 5, dilation=1)
