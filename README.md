@@ -42,7 +42,7 @@ pipeline.
 
 **Getting Started**:
 
-*Test on Ubuntu 18.04 LTS*
+*Tested on Ubuntu 18.04 LTS*
 
 1. Clone the Repository:
    
@@ -56,5 +56,3 @@ pipeline.
 
    chmod +x fetch.sh
    ./fetch.sh
- 
-
