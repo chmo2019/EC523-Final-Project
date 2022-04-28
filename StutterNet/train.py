@@ -11,7 +11,7 @@ def parser():
 	ap = argparse.ArgumentParser()
 	return ap.parse_args()
 
-def train(net, trainloader, criterion, batch_size,
+def train(net, trainloader, criterion, batch_size, target_names,
           validationloader=None, optimizer=None,
           scheduler=None, epochs=50, logdir=None, metrics=None,
           verbose=True, tuner=False, checkpoint_dir=None):
