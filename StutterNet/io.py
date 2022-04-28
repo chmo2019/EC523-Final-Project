@@ -64,7 +64,7 @@ class SEP28KDataset(torch.utils.data.Dataset):
         # if self.transform:
         #     sample = self.transform(sample)
 
-        return torch.tensor(wav), torch.tensor(labels)
+        return torch.tensor(wav).clone().detach(), torch.tensor(labels).clone().detach()
         
     @staticmethod
     def pad_trunc(sig, max_ms, sr):
