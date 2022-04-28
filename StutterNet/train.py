@@ -212,4 +212,4 @@ if __name__ == "__main__":
 	#train(args.net, args.trainloader, args.criterion, args.batch_size,
         #  args.validationloader, args.optimizer,
         #  args.scheduler, args.epochs, args.logdir, args.metrics,
-          args.verbose, args.tuner, args.checkpoint_dir):
+        #  args.verbose, args.tuner, args.checkpoint_dir):
