@@ -209,7 +209,7 @@ if __name__ == "__main__":
 	args = parser() # get arguments
 
 	# TODO: implement args such that we can train from the command line
-	train(args.net, args.trainloader, args.criterion, args.batch_size,
-          args.validationloader, args.optimizer,
-          args.scheduler, args.epochs, args.logdir, args.metrics,
+	#train(args.net, args.trainloader, args.criterion, args.batch_size,
+        #  args.validationloader, args.optimizer,
+        #  args.scheduler, args.epochs, args.logdir, args.metrics,
           args.verbose, args.tuner, args.checkpoint_dir):
