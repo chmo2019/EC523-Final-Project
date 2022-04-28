@@ -40,6 +40,7 @@ def train(net, trainloader, criterion, batch_size,
     tuner (bool, optional): whether to employ ray tune
   '''
   from torch.utils.tensorboard import SummaryWriter
+  from sklearn.metrics import classification_report
   writer = SummaryWriter(log_dir=logdir)
 
   if (verbose):
