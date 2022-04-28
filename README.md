@@ -8,7 +8,7 @@ Sheikh et al., a variation of the Transformer proposed by Vaswani et al. with 1D
 
 We implemented our experiments in Pytorch and used Sklearn, Tensorboard, and Ray for evaluation and training.
 
-We performed most of our experiments in our [Jupyter Notebook](./StutterNet_torch_3_20_22.ipynb). The [StutterNet](./StutterNet) directory contains the tools used in these experiments.
+We provide a tutorial in our [Jupyter Notebook](./tutorial.ipynb). The [StutterNet](./StutterNet) directory contains the tools used in these experiments.
 
 List of python packages contained in [requirements.txt](./requirements.txt)
 
@@ -16,8 +16,9 @@ Below is short explanation of remaining files in the project folder.
 
 ```
 ├── requirements.txt
-├── StutterNet_torch_3_20_22.ipynb
+├── tutorial.ipynb
 ├── StutterNet
+├── classes.txt
 │   ├── io.py
 │   ├── losses.py
 │   ├── metrics.py
