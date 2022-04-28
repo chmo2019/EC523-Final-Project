@@ -2,7 +2,9 @@ import torch
 from torch import nn
 import numpy as np
 import argparse
-from .metrics import sigmoid
+
+def sigmoid(x):
+  return 1 / (1 + np.exp(-x))
 
 def parser():
 	#TODO: create parser
