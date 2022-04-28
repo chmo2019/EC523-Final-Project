@@ -19,6 +19,7 @@ Below is short explanation of remaining files in the project folder.
 ├── tutorial.ipynb
 ├── StutterNet
 ├── classes.txt
+├── fetch.sh
 │   ├── io.py
 │   ├── losses.py
 │   ├── metrics.py
