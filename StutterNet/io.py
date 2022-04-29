@@ -59,7 +59,7 @@ class SEP28KDataset(torch.utils.data.Dataset):
         labels = self.labels[idx].astype('float32')
 
         if self.transform is not None:
-            sample = self.transform(sample)
+            wav = self.transform(sample)
         
         if (self.unsqueeze):
             wav = torch.unsqueeze(wav, 0)
