@@ -44,7 +44,7 @@ pipeline.
 
 *Tested on Ubuntu 18.04 LTS*
 
-1. Clone the Repository:
+1. Clone the repository:
    
    git clone https://github.com/chmo2019/EC523-Final-Project/
 
@@ -56,7 +56,11 @@ pipeline.
 
    chmod +x fetch.sh
    ./fetch.sh
+ 
+4. Install requirements:
    
-4. Run the tutorial:
+   pip install -r requirements.txt
+   
+6. Run the tutorial:
 
    tutorial is in the provided [Jupyter Notebook](tutorial.ipynb).
