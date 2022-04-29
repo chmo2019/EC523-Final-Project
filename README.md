@@ -56,3 +56,7 @@ pipeline.
 
    chmod +x fetch.sh
    ./fetch.sh
+   
+4. Run the tutorial:
+
+   tutorial is in the provided [Jupyter Notebook](tutorial.ipynb).
