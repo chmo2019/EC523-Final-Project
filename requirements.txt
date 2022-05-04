@@ -1,0 +1,11 @@
+librosa
+matplotlib
+numpy
+pandas
+ray
+sklearn
+scipy
+tensorflow
+torch
+torchvision
+torchaudio
