@@ -4,7 +4,9 @@
 
 For our final project in EC523 we chose to solve the stutter detection task
 posed by Apple's SEP-28k dataset. In an attempt to solve this task, we tried three different neural network architectures: StutterNet proposed by
-Sheikh et al., a variation of the Transformer proposed by Vaswani et al. with 1D convolutional layers replacing linear output layers, and a 1D variant of ResNet proposed by He et al.
+Sheikh et al., a variation of the Transformer proposed by Vaswani et al. with 1D convolutional layers replacing linear output layers, and a 1D variant of ResNet proposed by He et al. 
+
+*Update 5/4/2022: we also tried training a Pytorch implementation of BC Resnet from https://github.com/roman-vygon/BCResNet*
 
 We implemented our experiments in Pytorch and used Sklearn, Tensorboard, and Ray for evaluation and training.
 
