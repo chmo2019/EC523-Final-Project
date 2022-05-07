@@ -62,7 +62,7 @@ class SEP28KDataset(torch.utils.data.Dataset):
             wav = self.transform(wav)
         
         if (self.unsqueeze):
-            wav = torch.unsqueeze(wav, 0)
+            wav = torch.unsqueeze(wav, 1)
 
         return torch.tensor(wav).clone().detach(), torch.tensor(labels).clone().detach()
         
